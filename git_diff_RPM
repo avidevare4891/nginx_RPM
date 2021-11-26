@@ -1,0 +1,160 @@
+[centos@ip-172-31-21-105 rpm]$ git diff
+diff --git a/rpm/SOURCES/logrotate b/rpm/SOURCES/logrotate
+index 24139f6..5af3d7e 100644
+--- a/rpm/SOURCES/logrotate
++++ b/rpm/SOURCES/logrotate
+@@ -1,4 +1,4 @@
+-/var/log/nginx/*.log {
++/var/log/nginx/error/*.log {
+         daily
+         missingok
+         rotate 52
+diff --git a/rpm/SOURCES/nginx.check-reload.sh b/rpm/SOURCES/nginx.check-reload.sh
+index 7cd00a8..a60043a 100755
+--- a/rpm/SOURCES/nginx.check-reload.sh
++++ b/rpm/SOURCES/nginx.check-reload.sh
+@@ -11,7 +11,7 @@ CHECKSLEEP=3
+ 
+ templog=`/bin/mktemp --tmpdir nginx-check-reload-XXXXXX.log`
+ trap '/bin/rm -f $templog' 0
+-/usr/bin/tail --pid=$$ -n 0 --follow=name /var/log/nginx/error.log > $templog &
++/usr/bin/tail --pid=$$ -n 0 --follow=name /var/log/nginx/error/error.log > $templog &
+ /bin/sleep 1
+ /bin/echo -n $"Sending reload signal to $prog: "
+ killproc -p ${pidfile} ${prog} -HUP
+diff --git a/rpm/SOURCES/nginx.conf b/rpm/SOURCES/nginx.conf
+index e4bad8d..7991a76 100644
+--- a/rpm/SOURCES/nginx.conf
++++ b/rpm/SOURCES/nginx.conf
+@@ -1,8 +1,8 @@
+ 
+-user  nginx;
++user  myuser;
+ worker_processes  1;
+ 
+-error_log  /var/log/nginx/error.log warn;
++error_log  /var/log/nginx/error/error.log warn;
+ pid        /var/run/nginx.pid;
+ 
+ 
+diff --git a/rpm/SOURCES/nginx.init.in b/rpm/SOURCES/nginx.init.in
+index 4370c67..dfa0a62 100755
+--- a/rpm/SOURCES/nginx.init.in
++++ b/rpm/SOURCES/nginx.init.in
+@@ -114,7 +114,7 @@ rh_status() {
+ check_reload() {
+     templog=`/bin/mktemp --tmpdir nginx-check-reload-XXXXXX.log`
+     trap '/bin/rm -f $templog' 0
+-    /usr/bin/tail --pid=$$ -n 0 --follow=name /var/log/nginx/error.log > $templog &
++    /usr/bin/tail --pid=$$ -n 0 --follow=name /var/log/nginx/error/error.log > $templog &
+     /bin/sleep 1
+     /bin/echo -n $"Sending reload signal to $prog: "
+     killproc -p ${pidfile} ${prog} -HUP
+diff --git a/rpm/SOURCES/nginx.suse.logrotate b/rpm/SOURCES/nginx.suse.logrotate
+index 988b3b2..621a07f 100644
+--- a/rpm/SOURCES/nginx.suse.logrotate
++++ b/rpm/SOURCES/nginx.suse.logrotate
+@@ -1,4 +1,4 @@
+-/var/log/nginx/*.log {
++/var/log/nginx/error/*.log {
+         daily
+         missingok
+         rotate 52
+diff --git a/rpm/SPECS/Makefile b/rpm/SPECS/Makefile
+index 465b68c..64589f5 100644
+--- a/rpm/SPECS/Makefile
++++ b/rpm/SPECS/Makefile
+@@ -45,7 +45,7 @@ BASE_CONFIGURE_ARGS=\
+        --sbin-path=%{_sbindir}/nginx \
+        --modules-path=%{_libdir}/nginx/modules \
+        --conf-path=%{_sysconfdir}/nginx/nginx.conf \
+-       --error-log-path=%{_localstatedir}/log/nginx/error.log \
++       --error-log-path=%{_localstatedir}/log/nginx/error/error.log \
+        --http-log-path=%{_localstatedir}/log/nginx/access.log \
+        --pid-path=%{_localstatedir}/run/nginx.pid \
+        --lock-path=%{_localstatedir}/run/nginx.lock \
+diff --git a/rpm/SPECS/nginx-module.spec.in b/rpm/SPECS/nginx-module.spec.in
+index 78ac7db..ac5f02e 100644
+--- a/rpm/SPECS/nginx-module.spec.in
++++ b/rpm/SPECS/nginx-module.spec.in
+@@ -1,6 +1,6 @@
+ #
+-%define nginx_user nginx
+-%define nginx_group nginx
++%define nginx_user myuser
++%define nginx_group myuser
+ 
+ %if 0%{?rhel} || 0%{?amzn} || 0%{?fedora}
+ %define _group System Environment/Daemons
+diff --git a/rpm/SPECS/nginx-plus-module.spec.in b/rpm/SPECS/nginx-plus-module.spec.in
+index 0862eff..d915dde 100644
+--- a/rpm/SPECS/nginx-plus-module.spec.in
++++ b/rpm/SPECS/nginx-plus-module.spec.in
+@@ -1,6 +1,6 @@
+ #
+-%define nginx_user nginx
+-%define nginx_group nginx
++%define nginx_user myuser
++%define nginx_group myuser
+ 
+ %if 0%{?rhel} || 0%{?amzn}
+ %define _group System Environment/Daemons
+diff --git a/rpm/SPECS/nginx.spec.in b/rpm/SPECS/nginx.spec.in
+index dbb0311..08ee332 100644
+--- a/rpm/SPECS/nginx.spec.in
++++ b/rpm/SPECS/nginx.spec.in
+@@ -1,7 +1,7 @@
+ #
+ %define nginx_home %{_localstatedir}/cache/nginx
+-%define nginx_user nginx
+-%define nginx_group nginx
++%define nginx_user myuser
++%define nginx_group myuser
+ %define nginx_loggroup adm
+ 
+ # distribution specific definitions
+@@ -141,7 +141,7 @@ make %{?_smp_mflags}
+ %{__rm} -f $RPM_BUILD_ROOT%{_sysconfdir}/nginx/*.default
+ %{__rm} -f $RPM_BUILD_ROOT%{_sysconfdir}/nginx/fastcgi.conf
+ 
+-%{__mkdir} -p $RPM_BUILD_ROOT%{_localstatedir}/log/nginx
++%{__mkdir} -p $RPM_BUILD_ROOT%{_localstatedir}/log/nginx/error
+ %{__mkdir} -p $RPM_BUILD_ROOT%{_localstatedir}/run/nginx
+ %{__mkdir} -p $RPM_BUILD_ROOT%{_localstatedir}/cache/nginx
+ 
+@@ -253,7 +253,7 @@ cat /dev/null > debugsourcefiles.list
+ %{_datadir}/nginx/html/*
+ 
+ %attr(0755,root,root) %dir %{_localstatedir}/cache/nginx
+-%attr(0755,root,root) %dir %{_localstatedir}/log/nginx
++%attr(0755,root,root) %dir %{_localstatedir}/log/nginx/error
+ 
+ %dir %{_datadir}/doc/%{name}-%{base_version}
+ %doc %{_datadir}/doc/%{name}-%{base_version}/COPYRIGHT
+@@ -298,17 +298,17 @@ BANNER
+ 
+     # Touch and set permisions on default log files on installation
+ 
+-    if [ -d %{_localstatedir}/log/nginx ]; then
++    if [ -d %{_localstatedir}/log/nginx/error ]; then
+         if [ ! -e %{_localstatedir}/log/nginx/access.log ]; then
+             touch %{_localstatedir}/log/nginx/access.log
+             %{__chmod} 640 %{_localstatedir}/log/nginx/access.log
+-            %{__chown} nginx:%{nginx_loggroup} %{_localstatedir}/log/nginx/access.log
++            %{__chown} %{nginx_user}:%{nginx_loggroup} %{_localstatedir}/log/nginx/access.log
+         fi
+ 
+-        if [ ! -e %{_localstatedir}/log/nginx/error.log ]; then
+-            touch %{_localstatedir}/log/nginx/error.log
+-            %{__chmod} 640 %{_localstatedir}/log/nginx/error.log
+-            %{__chown} nginx:%{nginx_loggroup} %{_localstatedir}/log/nginx/error.log
++        if [ ! -e %{_localstatedir}/log/nginx/error/error.log ]; then
++            touch %{_localstatedir}/log/nginx/error/error.log
++            %{__chmod} 640 %{_localstatedir}/log/nginx/error/error.log
++            %{__chown} %{nginx_user}:%{nginx_loggroup} %{_localstatedir}/log/nginx/error/error.log
+         fi
+     fi
+ fi
+
+
+
